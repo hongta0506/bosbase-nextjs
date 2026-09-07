@@ -2,14 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import BosBase from "bosbase";
 import { ensureApiCallsCollection } from "@/lib/bosbase/init-collection";
 
-const BOSBASE_URL = process.env.BOSBASE_URL || "http://localhost:8090/";
-const BOSBASE_EMAIL = process.env.BOSBASE_EMAIL || "a@qq.com";
-const BOSBASE_PASSWORD = process.env.BOSBASE_PASSWORD || "bosbasepass";
+const BOSBASE_URL = process.env.BOSBASE_URL;
+const BOSBASE_EMAIL = process.env.BOSBASE_EMAIL;
+const BOSBASE_PASSWORD = process.env.BOSBASE_PASSWORD;
 
 async function getBosBaseClient(): Promise<BosBase | null> {
+  if (!BOSBASE_URL || !BOSBASE_EMAIL || !BOSBASE_PASSWORD) return null;
+
   try {
     const pb = new BosBase(BOSBASE_URL);
-    await pb.admins.authWithPassword(BOSBASE_EMAIL, BOSBASE_PASSWORD);
+    await pb.collection("_superusers").authWithPassword(BOSBASE_EMAIL, BOSBASE_PASSWORD);
     await ensureApiCallsCollection(pb);
     return pb;
   } catch (error) {
