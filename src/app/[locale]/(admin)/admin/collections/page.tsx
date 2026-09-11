@@ -63,27 +63,34 @@ export default async function CollectionsPage() {
             </div>
 
             <div>
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">
-                Schema Fields ({col.schema?.length || 0})
-              </span>
-              <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 max-h-48 overflow-y-auto space-y-1.5 font-mono text-xs">
-                {col.schema && col.schema.length > 0 ? (
-                  col.schema.map((f: any, idx: number) => (
-                    <div key={idx} className="flex items-center justify-between py-1 border-b border-slate-100 last:border-0">
-                      <div className="flex items-center gap-1.5">
-                        <KeyRound className="h-3 w-3 text-slate-400" />
-                        <span className="font-medium text-slate-800">{f.name}</span>
-                        {f.required && <span className="text-red-500 text-[10px] font-bold">*</span>}
-                      </div>
-                      <span className="text-[11px] text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">
-                        {f.type}
-                      </span>
+              {(() => {
+                const fields = col.fields || col.schema || [];
+                return (
+                  <>
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">
+                      Schema Fields ({fields.length})
+                    </span>
+                    <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 max-h-48 overflow-y-auto space-y-1.5 font-mono text-xs">
+                      {fields.length > 0 ? (
+                        fields.map((f: any, idx: number) => (
+                          <div key={idx} className="flex items-center justify-between py-1 border-b border-slate-100 last:border-0">
+                            <div className="flex items-center gap-1.5">
+                              <KeyRound className="h-3 w-3 text-slate-400" />
+                              <span className="font-medium text-slate-800">{f.name}</span>
+                              {f.required && <span className="text-red-500 text-[10px] font-bold">*</span>}
+                            </div>
+                            <span className="text-[11px] text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                              {f.type}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-slate-400 italic">No custom fields defined</span>
+                      )}
                     </div>
-                  ))
-                ) : (
-                  <span className="text-slate-400 italic">No custom fields defined</span>
-                )}
-              </div>
+                  </>
+                );
+              })()}
             </div>
 
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">

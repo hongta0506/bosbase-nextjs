@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminClient, isAdminCollection, isMutationAction, requireAdmin } from "@/lib/bosbase/admin";
+import { getAdminClient, isAdminCollection, isMutationAction, isValidCollectionName, requireAdmin } from "@/lib/bosbase/admin";
 
 type Proposal = {
   id: string;
-  action: "create" | "update" | "delete";
+  action: "create" | "update" | "delete" | "create_collection";
   collection: string;
   recordId?: string;
   data?: Record<string, unknown>;
@@ -24,10 +24,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   } catch {
     return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
   }
-  if (proposal.status !== "pending" || !isAdminCollection(proposal.collection) || !isMutationAction(proposal.action)) {
+  const isColMutation = proposal.action === "create_collection";
+  const validCol = isColMutation ? isValidCollectionName(proposal.collection) : isAdminCollection(proposal.collection);
+  if (proposal.status !== "pending" || !validCol || !isMutationAction(proposal.action)) {
     return NextResponse.json({ error: "Proposal is not approvable" }, { status: 409 });
   }
-  if (proposal.action !== "create" && !proposal.recordId) {
+  if (proposal.action !== "create" && proposal.action !== "create_collection" && !proposal.recordId) {
     return NextResponse.json({ error: "Proposal record ID missing" }, { status: 400 });
   }
 
@@ -48,6 +50,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
       if (proposal.action === "delete") {
         await client.collection(proposal.collection).delete(recordId);
+      }
+      if (proposal.action === "create_collection") {
+        const payload = proposal.data ?? {};
+        const colPayload = {
+          name: proposal.collection,
+          type: typeof payload.type === "string" ? payload.type : "base",
+          fields: Array.isArray(payload.fields) ? payload.fields : [],
+          listRule: payload.listRule !== undefined ? payload.listRule : null,
+          viewRule: payload.viewRule !== undefined ? payload.viewRule : null,
+          createRule: payload.createRule !== undefined ? payload.createRule : null,
+          updateRule: payload.updateRule !== undefined ? payload.updateRule : null,
+          deleteRule: payload.deleteRule !== undefined ? payload.deleteRule : null,
+          ...payload,
+        };
+        record = await client.collections.create(colPayload);
       }
       await client.collection("audit_logs").create({
         actor,

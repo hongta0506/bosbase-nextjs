@@ -4,8 +4,12 @@ import { redirect } from "next/navigation";
 
 export const ADMIN_COLLECTIONS = ["providers", "provider_runs", "entity_mappings", "matches"] as const;
 export type AdminCollection = (typeof ADMIN_COLLECTIONS)[number];
-export type MutationAction = "create" | "update" | "delete";
+export type MutationAction = "create" | "update" | "delete" | "create_collection";
 export type BosBaseRecord = { id: string; [key: string]: unknown };
+
+export function isValidCollectionName(value: unknown): value is string {
+  return typeof value === "string" && /^[a-z][a-z0-9_]*$/.test(value.trim()) && !value.startsWith("_");
+}
 
 export async function requireAdmin() {
   const session = await auth();
@@ -25,7 +29,7 @@ export function isAdminCollection(value: unknown): value is AdminCollection {
 }
 
 export function isMutationAction(value: unknown): value is MutationAction {
-  return value === "create" || value === "update" || value === "delete";
+  return value === "create" || value === "update" || value === "delete" || value === "create_collection";
 }
 
 export async function getAdminClient() {

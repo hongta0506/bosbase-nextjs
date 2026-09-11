@@ -7,6 +7,7 @@ import {
   getAdminClient,
   isAdminCollection,
   isMutationAction,
+  isValidCollectionName,
   requireAdmin,
 } from "@/lib/bosbase/admin";
 
@@ -14,6 +15,17 @@ const MAX_MESSAGE_LENGTH = 2000;
 const MAX_AGENT_TURNS = 5;
 
 const tools: ChatCompletionTool[] = [
+  {
+    type: "function",
+    function: {
+      name: "list_collections",
+      description: "List all BosBase collections with their metadata and field schema.",
+      parameters: {
+        type: "object",
+        properties: {},
+      },
+    },
+  },
   {
     type: "function",
     function: {
@@ -40,19 +52,19 @@ const tools: ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "propose_mutation",
-      description: "Draft a schema or record mutation proposal for Human Operator approval. Direct writes are blocked.",
+      description:
+        "Draft a schema or record mutation proposal for Human Operator approval. Direct writes are blocked. For new collections, use action 'create_collection'.",
       parameters: {
         type: "object",
         properties: {
           action: {
             type: "string",
-            enum: ["create", "update", "delete"],
+            enum: ["create", "update", "delete", "create_collection"],
             description: "Mutation action to propose",
           },
           collection: {
             type: "string",
-            enum: ADMIN_COLLECTIONS,
-            description: "Target BosBase collection",
+            description: "Target BosBase collection name",
           },
           recordId: {
             type: "string",
@@ -60,7 +72,7 @@ const tools: ChatCompletionTool[] = [
           },
           data: {
             type: "object",
-            description: "JSON payload for create or update",
+            description: "JSON payload for create/update, or collection schema definition for create_collection (e.g. { fields: [...] })",
           },
           reason: {
             type: "string",
@@ -76,9 +88,14 @@ const tools: ChatCompletionTool[] = [
 const systemPrompt = `You are the Football Intelligence AI Operator Assistant with autonomous tool-calling capabilities.
 You have read-only inspection access to BosBase collections and can propose mutations via the 'propose_mutation' tool.
 
+CAPABILITIES:
+1. 'list_collections': Inspect all collections and schema in BosBase.
+2. 'get_collection_records': Query recent records in allowed collections.
+3. 'propose_mutation': Propose creating, updating, deleting records, or creating a new collection ('create_collection').
+
 SAFETY RULES:
-1. Direct database writes are impossible. You MUST use 'propose_mutation' whenever a create/update/delete is requested or needed.
-2. When asked to inspect, analyze, count, or verify data, call 'get_collection_records' first before answering.
+1. Direct database writes are impossible. You MUST use 'propose_mutation' whenever a write or schema creation is requested or needed.
+2. When asked to inspect, analyze, count, or verify data, call 'get_collection_records' or 'list_collections' first before answering.
 3. Keep responses concise, professional, and factual. Explain what actions/proposals were generated and notify the operator that approval is required in Governance.`;
 
 export async function GET(request: NextRequest) {
@@ -183,7 +200,25 @@ export async function POST(request: NextRequest) {
 
         let toolResult: string;
 
-        if (name === "get_collection_records") {
+        if (name === "list_collections") {
+          try {
+            const list = await client.collections.getFullList();
+            toolResult = JSON.stringify(
+              list.map((c: any) => ({
+                id: c.id,
+                name: c.name,
+                type: c.type,
+                fields: (c.fields || c.schema || []).map((f: any) => ({
+                  name: f.name,
+                  type: f.type,
+                  required: !!f.required,
+                })),
+              }))
+            );
+          } catch (err) {
+            toolResult = JSON.stringify({ error: err instanceof Error ? err.message : "Failed to list collections" });
+          }
+        } else if (name === "get_collection_records") {
           const col = args.collection as AdminCollection;
           const limit = Math.min(Math.max(Number(args.limit) || 10, 1), 50);
           if (isAdminCollection(col)) {
@@ -202,9 +237,17 @@ export async function POST(request: NextRequest) {
           const recordId = (args.recordId as string) || "";
           const data = args.data as Record<string, unknown>;
 
-          if (!isMutationAction(action) || !isAdminCollection(col)) {
+          const isColMutation = action === "create_collection";
+          const validCol = isColMutation ? isValidCollectionName(col) : isAdminCollection(col);
+
+          if (!isMutationAction(action) || !validCol) {
             toolResult = JSON.stringify({ error: "Invalid mutation action or collection" });
-          } else if (typeof data !== "object" || data === null || Array.isArray(data) || (action !== "create" && !recordId)) {
+          } else if (
+            typeof data !== "object" ||
+            data === null ||
+            Array.isArray(data) ||
+            (action !== "create" && action !== "create_collection" && !recordId)
+          ) {
             toolResult = JSON.stringify({ error: "Invalid mutation payload or missing recordId" });
           } else {
             try {
