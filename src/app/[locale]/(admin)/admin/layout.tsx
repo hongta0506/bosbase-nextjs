@@ -13,10 +13,25 @@ import {
   LogOut,
   Radio,
   Server,
-  TerminalSquare
+  TerminalSquare,
+  Users,
+  CalendarCheck,
+  CalendarOff,
+  Banknote,
+  BookOpen
 } from "lucide-react";
 
 const navigation = [
+  {
+    title: "HRM & Payroll",
+    items: [
+      { label: "Employees", path: "/hrm/employees", icon: Users },
+      { label: "Daily Attendance", path: "/hrm/attendance", icon: CalendarCheck },
+      { label: "Leave Applications", path: "/hrm/leaves", icon: CalendarOff },
+      { label: "Payroll & Slips", path: "/hrm/payroll", icon: Banknote },
+      { label: "GL Journal", path: "/hrm/gl-entries", icon: BookOpen },
+    ],
+  },
   {
     title: "Operations",
     items: [
